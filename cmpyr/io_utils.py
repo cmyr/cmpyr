@@ -4,6 +4,7 @@ import time
 import json
 import gzip
 
+
 from . import string_utils
 
 
@@ -84,3 +85,64 @@ def iter_file(path, item_filter=None):
     items = load_gzip_json(path, item_filter) or list()
     for i in items:
         yield i
+
+
+def create_if_not_exists(newdir, on_exists_msg=None):
+    if not os.path.exists(newdir):
+        os.makedirs(newdir)
+        return True
+    else:
+        if on_exists_msg:
+            print(on_exists_msg)
+        return False
+
+
+def confirm_overwrite(path):
+    if os.path.exists(path):
+        while True:
+            prompt = "a file named %s already exists. Overwrite? (y/n)" % path
+            answer = input(prompt).lower()
+            if answer in set(['y', 'yes']):
+                return True
+            if answer in ['n', 'no']:
+                return False
+    else:
+        return True
+
+
+def dump(results, basedir, sort_by_date=True):
+    '''writes results to disk in basedir.
+    if sort_by_date is True (the default) creates subdirs by date in form MM/DD.'''
+    if sort_by_date:
+        write_dir = os.path.join(basedir,
+                                 time.strftime("%Y"),
+                                 time.strftime("%m"),
+                                 time.strftime("%d"))
+    else:
+        write_dir = basedir
+
+    create_if_not_exists(write_dir)
+    filename = time.strftime("%H:%M:%S.txt.gz")
+    filepath = os.path.join(write_dir, filename)
+    write_json_to_gzip(filepath, results)
+    return filepath
+
+
+def stream_writer(outpath, source, **kwargs):
+    '''takes items from a stream and wrties them to file.'''
+    if not confirm_overwrite(outpath):
+        sys.exit(1)
+
+    if kwargs.get('gzip'):
+        f = gzip.open(outpath, 'wt', encoding='utf-8')
+    else:
+        f = open(outpath, 'w')
+    for line in source:
+        f.write('%s\n' % line.rstrip())
+
+    f.close()
+
+
+def write_json_to_gzip(outfile, pyobj):
+    with gzip.open(outfile, 'wb') as writefile:
+        writefile.write(bytes(json.dumps(pyobj), 'utf-8'))
